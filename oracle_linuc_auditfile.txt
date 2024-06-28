@@ -1,0 +1,195 @@
+OL2 restricting ssh access to members of the support group
+
+<custom_item>
+  type           : COMMAND
+  description    : Check SSH configuration to restrict access to support group
+  info           : >
+    Verify that SSH is configured to restrict access to members of the 'support' group.
+  command        : grep -E "^AllowGroups\s+support" /etc/ssh/sshd_config
+  expect         : ^AllowGroups\s+support
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check membership of support group for SSH users
+  info           : >
+    Verify users allowed SSH access are members of the 'support' group.
+  command        : grep -E "^\s*AllowGroups" /etc/ssh/sshd_config | grep -q support && getent group support | cut -d: -f4 | tr ',' '\n' | grep -q "$(awk -F: '$7 ~ /\/bin\/bash/ {print $1}' /etc/passwd | grep -v root)"
+  expect         : Found: 2
+</custom_item>
+
+
+OL3 locking down ingress ports
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check iptables configuration for allowed ingress ports
+  info           : >
+    Verify that only specific ingress ports are allowed in the iptables configuration.
+  command        : iptables -L INPUT -n | grep -E 'ACCEPT.*tcp\s+dpt:(20|21|22|80|443)' | grep -vE '^$'
+</custom_item>
+
+
+
+OL4 enforcing strong password policies
+
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check minimum password length
+  info           : >
+    Verify that the minimum password length is set to at least 8 characters.
+  command        : grep ^minlen /etc/security/pwquality.conf | awk -F'=' '{ if ($2 >= 8) print "Found: " $2; else print "Not found: " $2; }'
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check password complexity requirements
+  info           : >
+    Verify that password complexity requirements are enforced.
+  command        : grep ^minclass /etc/security/pwquality.conf | awk -F'=' '{ if ($2 >= 4) print "Found: " $2; else print "Not found: " $2; }'
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check password expiration policy
+  info           : >
+    Verify that passwords expire after a maximum of 90 days.
+  command        : grep ^PASS_MAX_DAYS /etc/login.defs | awk '{ if ($2 <= 90) print "Found: " $2; else print "Not found: " $2; }'
+</custom_item>
+
+
+
+
+OL5 protecting the boot directory
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check permissions of /boot directory
+  info           : >
+    Verify that the /boot directory permissions are set to 755.
+  command        : stat -c %a /boot
+  expect         : 755
+</custom_item>
+
+OL6 encrypting the repository database
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check Oracle Database Encryption
+  info           : >
+    Verify if encryption is enabled for the Oracle repository database.
+  command        : sqlplus -S / as sysdba <<EOF
+                    set heading off;
+                    set feedback off;
+                    select value from v\$parameter where name='encryption_enabled';
+                    exit;
+                    EOF
+  expect         : true
+</custom_item>
+
+OL7 check encrypting data over the network (TLS for web traffic, Oracle native AEC256 for database traffic)
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check TLS configuration for web server
+  info           : >
+    Verify that TLS is configured for web traffic on the web server.
+  command        : openssl s_client -connect localhost:443 2>/dev/null | openssl x509 -noout -text | grep "Signature Algorithm"
+  expect         : sha256WithRSAEncryption
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check Oracle database network encryption
+  info           : >
+    Verify that Oracle database network traffic is encrypted with AES256.
+  command        : sqlplus -S / as sysdba <<EOF
+                    set heading off;
+                    set feedback off;
+                    select value from v\$parameter where name='sqlnet.encryption_types_client' and value like '%AES256%';
+                    exit;
+                    EOF
+  expect         : AES256
+</custom_item>
+
+
+
+OL8 check controlling access to the repository database with database vault
+
+<custom_item>
+  type           : COMMAND
+  description    : Check Database Vault realms configuration
+  info           : >
+    Verify if Database Vault realms are configured to control access.
+  command        : sqlplus -S / as sysdba <<EOF
+                    set heading off;
+                    set feedback off;
+                    select count(*) from dba_dv_realms;
+                    exit;
+                    EOF
+  expect         : > 0
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check Database Vault rules configuration
+  info           : >
+    Verify if Database Vault rules are configured to enforce access controls.
+  command        : sqlplus -S / as sysdba <<EOF
+                    set heading off;
+                    set feedback off;
+                    select count(*) from dba_dv_rules;
+                    exit;
+                    EOF
+  expect         : > 0
+</custom_item>
+
+
+
+OL9 auditing operating system and database activity
+
+
+
+<custom_item>
+  type           : COMMAND
+  description    : Check auditd service status
+  info           : >
+    Verify if the auditd service is running.
+  command        : systemctl is-active auditd
+  expect         : active
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check audit rules for OS
+  info           : >
+    Verify if audit rules are configured to audit relevant OS activities.
+  command        : auditctl -l | grep -E '^(cwd|execve|exit|fork|read|write)'
+  expect         : configured
+</custom_item>
+
+<custom_item>
+  type           : COMMAND
+  description    : Check database auditing status
+  info           : >
+    Verify if auditing is enabled for the database.
+  command        : sqlplus -S / as sysdba <<EOF
+                    set heading off;
+                    set feedback off;
+                    select value from v\$parameter where name='audit_trail';
+                    exit;
+                    EOF
+  expect         : DB
+</custom_item>
+
+
+
+OL10 
+
+

@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Function to check SSH access based on group membership
+check_ssh_access() {
+    GROUP="support"
+    
+    # Check if the SSH configuration allows access for the specified group
+	if grep -q "^AllowGroups.*${GROUP}" /etc/ssh/sshd_config; then
+		echo "SSH access is restricted to members of the '$GROUP' group - pass"
+	else
+		echo "SSH access is NOT restricted to members of the '$GROUP' group - Fail"
+	fi
+
+}
+
+# Function to check ingress ports
+check_ingress_ports() {
+    echo "=== iptables Rules ==="
+    sudo iptables -L -n
+
+    
+    # Check if SSH (port 22) is allowed in iptables
+    if sudo iptables -L -n | grep -q "tcp dpt:22"; then
+        echo "locking down ingress ports - Pass"
+	else
+		echo "locking down ingress ports - Fail"
+	fi
+    
+}
+
+# Main script execution starts here
+
+# Call the functions to check SSH access and ingress ports
+check_ssh_access
+echo "============================="
+check_ingress_ports
+
+# End of script
